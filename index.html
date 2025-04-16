@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ad24 - Show Off Your Work!</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 2rem;
+    }
+    h1 { text-align: center; }
+    #post-form {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      max-width: 500px;
+      margin: 0 auto 2rem auto;
+    }
+    textarea {
+      padding: 1rem;
+      font-size: 1rem;
+      resize: none;
+      border-radius: 6px;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+    #ads {
+      max-width: 600px;
+      margin: auto;
+    }
+    .ad {
+      background: white;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 6px;
+      box-shadow: 0 0 6px rgba(0,0,0,0.1);
+    }
+    .meta {
+      font-size: 0.8rem;
+      color: gray;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .like-btn {
+      background: none;
+      border: none;
+      color: red;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+<h1>Ad24 - Post Your Creative Work</h1>
+<center><p>Your ad will be up for 24 hrs.</p></center>
+
+<form id="post-form">
+    <textarea id="ad-text" rows="4" placeholder="Type your ad here..." required></textarea>
+    <button type="submit">Post Ad</button>
+  </form>
+
+  <div id="recent-container">
+    <h2>🕒 Recent Posts</h2>
+    <div id="recent-ads"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://vdwrkwatpmxdmeuqnnho.supabase.co"; // ← replace this
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZkd3Jrd2F0cG14ZG1ldXFubmhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ0MjI1NTIsImV4cCI6MjA1OTk5ODU1Mn0.4TQBMY4W8RdMw3BTiMrnT8wZczQznr9Nad2aDK8SwcQ"; // ← replace this
+
+    async function fetchAds() {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/ads?select=*`, {
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`
+        }
+      });
+      const ads = await res.json();
+
+      const recent = ads
+        .filter(ad => Date.now() - new Date(ad.timestamp).getTime() < 86400000)
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 5);
+
+      renderRecentAds(recent);
+    }
+
+    function renderRecentAds(ads) {
+      const container = document.getElementById('recent-ads');
+      container.innerHTML = "";
+
+      if (ads.length === 0) {
+        container.innerHTML = "<p>No ads posted in the last 24 hours.</p>";
+        return;
+      }
+
+      ads.forEach(ad => {
+        const adEl = document.createElement('div');
+        adEl.className = 'ad';
+        adEl.innerHTML = `
+          <p>${ad.text}</p>
+          <div class="meta">
+            <span>Posted: ${new Date(ad.timestamp).toLocaleString()}</span>
+            <span>
+              <button class="like-btn" onclick="likeAd('${ad.id}', this)">
+                ❤️ ${ad.likes || 0}
+              </button>
+            </span>
+          </div>
+        `;
+        container.appendChild(adEl);
+      });
+    }
+
+    async function likeAd(adId, btn) {
+      const getRes = await fetch(`${SUPABASE_URL}/rest/v1/ads?id=eq.${adId}`, {
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`
+        }
+      });
+      const [ad] = await getRes.json();
+      const newLikes = (ad.likes || 0) + 1;
+
+      await fetch(`${SUPABASE_URL}/rest/v1/ads?id=eq.${adId}`, {
+        method: 'PATCH',
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`,
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify({ likes: newLikes })
+      });
+
+      btn.innerHTML = `❤️ ${newLikes}`;
+    }
+
+    document.getElementById('post-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = document.getElementById('ad-text').value.trim();
+      if (!text) return;
+
+      await fetch(`${SUPABASE_URL}/rest/v1/ads`, {
+        method: 'POST',
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ text })
+      });
+
+      document.getElementById('ad-text').value = '';
+      fetchAds();
+    });
+
+    fetchAds();
+    setInterval(fetchAds, 60000);
+  </script>
+</body>
